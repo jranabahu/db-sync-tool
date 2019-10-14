@@ -18,8 +18,8 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.Locale;
 
-public class DBSynchronise {
-    private static Logger logger = LoggerFactory.getLogger(DBSynchronise.class);
+public class DBSynchronizer {
+    private static Logger logger = LoggerFactory.getLogger(DBSynchronizer.class);
 
     private static String sourceDBUrl;
     private static String sourceDBUser;
@@ -75,7 +75,7 @@ public class DBSynchronise {
         logger.info("Last index value of IDN_OAUTH2_ACCESS_TOKEN_SYNC is: " + lastIndexOfAccessToken);
         logger.info("Last index value of IDN_OAUTH2_AUTH_CODE_SYNC is: " + lastIndexOfAuthCode);
 
-        DBSynchronise dbSynchronise = new DBSynchronise();
+        DBSynchronizer dbSynchronise = new DBSynchronizer();
 
         ArrayList<AccessTokenDto> accessTokenDtos = dbSynchronise.readTokenInfo();
         logger.info("No of fetch IDN_OAUTH2_ACCESS_TOKEN records to be merged: " + accessTokenDtos.size());
@@ -128,10 +128,8 @@ public class DBSynchronise {
                 dto.setTokenState(rs.getString("TOKEN_STATE"));
                 dto.setTokenStateId(rs.getString("TOKEN_STATE_ID"));
                 dto.setSubjectIdentifier(rs.getString("SUBJECT_IDENTIFIER"));
-                String accessTokenHashedJson = toHashedInfo(DigestUtils.sha256Hex(rs.getString("ACCESS_TOKEN")));
-                String refreshTokenHashedJson = toHashedInfo(DigestUtils.sha256Hex(rs.getString("REFRESH_TOKEN")));
-                dto.setAccessTokenHash(accessTokenHashedJson);
-                dto.setRefreshTokenHash(refreshTokenHashedJson);
+                dto.setAccessTokenHash(rs.getString("ACCESS_TOKEN_HASH"));
+                dto.setRefreshTokenHash(rs.getString("REFRESH_TOKEN_HASH"));
                 accessTokenDtos.add(dto);
             }
             rs.close();
@@ -213,9 +211,8 @@ public class DBSynchronise {
         PreparedStatement insertStatement = null;
         String insertQuery = "MERGE INTO IDN_OAUTH2_ACCESS_TOKEN USING dual ON ( TOKEN_ID = ? )"
                 + " WHEN MATCHED THEN UPDATE SET ACCESS_TOKEN=?,REFRESH_TOKEN=?,CONSUMER_KEY_ID=?,AUTHZ_USER=?,TENANT_ID=?,USER_DOMAIN=?,USER_TYPE=?,GRANT_TYPE=?,TIME_CREATED=?,"
-                + "    REFRESH_TOKEN_TIME_CREATED=?,VALIDITY_PERIOD=?,REFRESH_TOKEN_VALIDITY_PERIOD=?,TOKEN_SCOPE_HASH=?,TOKEN_STATE=?,TOKEN_STATE_ID=?,SUBJECT_IDENTIFIER=?,"
-                + " ACCESS_TOKEN_HASH=?,REFRESH_TOKEN_HASH=?"
-                + " WHEN NOT MATCHED THEN INSERT VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                + "    REFRESH_TOKEN_TIME_CREATED=?,VALIDITY_PERIOD=?,REFRESH_TOKEN_VALIDITY_PERIOD=?,TOKEN_SCOPE_HASH=?,TOKEN_STATE=?,TOKEN_STATE_ID=?,SUBJECT_IDENTIFIER=?"
+                + " WHEN NOT MATCHED THEN INSERT VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
             insertStatement = conn.prepareStatement(insertQuery);
 
         accessTokenDto.setSubjectIdentifier("a");
@@ -238,28 +235,25 @@ public class DBSynchronise {
             insertStatement.setString(15, accessTokenDto.getTokenState());
             insertStatement.setString(16, accessTokenDto.getTokenStateId());
             insertStatement.setString(17, accessTokenDto.getSubjectIdentifier());
-            insertStatement.setString(18, accessTokenDto.getAccessTokenHash());
-            insertStatement.setString(19, accessTokenDto.getRefreshTokenHash());
 
-            insertStatement.setString(20, accessTokenDto.getTokenId());
-            insertStatement.setString(21, accessTokenDto.getAccessToken());
-            insertStatement.setString(22, accessTokenDto.getRefreshToken());
-            insertStatement.setInt(23, accessTokenDto.getConsumerKeyId());
-            insertStatement.setString(24, accessTokenDto.getAuthzUser());
-            insertStatement.setInt(25, accessTokenDto.getTenantId());
-            insertStatement.setString(26, accessTokenDto.getUserDomain());
-            insertStatement.setString(27, accessTokenDto.getUserType());
-            insertStatement.setString(28, accessTokenDto.getGrantType());
-            insertStatement.setTimestamp(29, accessTokenDto.getTimeCreated());
-            insertStatement.setTimestamp(30, accessTokenDto.getRefreshTokenTimeCreated());
-            insertStatement.setLong(31, accessTokenDto.getValidityPeriod());
-            insertStatement.setLong(32, accessTokenDto.getRefreshTokenValidityPeriod());
-            insertStatement.setString(33, accessTokenDto.getTokenScopeHash());
-            insertStatement.setString(34, accessTokenDto.getTokenState());
-            insertStatement.setString(35, accessTokenDto.getTokenStateId());
-            insertStatement.setString(36, accessTokenDto.getSubjectIdentifier());
-            insertStatement.setString(37, accessTokenDto.getAccessTokenHash());
-            insertStatement.setString(38, accessTokenDto.getRefreshTokenHash());
+            // when not matched
+            insertStatement.setString(18, accessTokenDto.getTokenId());
+            insertStatement.setString(19, accessTokenDto.getAccessToken());
+            insertStatement.setString(20, accessTokenDto.getRefreshToken());
+            insertStatement.setInt(21, accessTokenDto.getConsumerKeyId());
+            insertStatement.setString(22, accessTokenDto.getAuthzUser());
+            insertStatement.setInt(23, accessTokenDto.getTenantId());
+            insertStatement.setString(24, accessTokenDto.getUserDomain());
+            insertStatement.setString(25, accessTokenDto.getUserType());
+            insertStatement.setString(26, accessTokenDto.getGrantType());
+            insertStatement.setTimestamp(27, accessTokenDto.getTimeCreated());
+            insertStatement.setTimestamp(28, accessTokenDto.getRefreshTokenTimeCreated());
+            insertStatement.setLong(29, accessTokenDto.getValidityPeriod());
+            insertStatement.setLong(30, accessTokenDto.getRefreshTokenValidityPeriod());
+            insertStatement.setString(31, accessTokenDto.getTokenScopeHash());
+            insertStatement.setString(32, accessTokenDto.getTokenState());
+            insertStatement.setString(33, accessTokenDto.getTokenStateId());
+            insertStatement.setString(34, accessTokenDto.getSubjectIdentifier());
             logger.debug("Adding record to IDN_OAUTH2_ACCESS_TOKEN: " + accessTokenDto.toString());
             insertStatement.execute();
         } finally {
@@ -299,8 +293,8 @@ public class DBSynchronise {
     private void updateIndividualTokenScope(Connection conn, TokenScopeDto tokenScopeDto) throws SQLException {
         String insertQuery = "MERGE INTO IDN_OAUTH2_ACCESS_TOKEN_SCOPE USING dual ON (TOKEN_ID = ? and TOKEN_SCOPE = ?)"
                 + " WHEN MATCHED THEN UPDATE SET TENANT_ID = ? WHEN NOT MATCHED THEN INSERT VALUES (?,?,?)";
-
         PreparedStatement insertStatement = null;
+
         try {
             insertStatement = conn.prepareStatement(insertQuery);
             insertStatement.setString(1, tokenScopeDto.getTokenId());
@@ -309,6 +303,7 @@ public class DBSynchronise {
             insertStatement.setString(4, tokenScopeDto.getTokenId());
             insertStatement.setString(5, tokenScopeDto.getTokenScope());
             insertStatement.setInt(6, tokenScopeDto.getTenantId());
+
             logger.debug("Adding record to IDN_OAUTH2_ACCESS_TOKEN_SCOPE: " + tokenScopeDto.toString());
             insertStatement.execute();
         } finally {
@@ -349,8 +344,7 @@ public class DBSynchronise {
                 dto.setSubjectIdentifier(rs.getString("SUBJECT_IDENTIFIER"));
                 dto.setPkceCodeChallenge(rs.getString("PKCE_CODE_CHALLENGE"));
                 dto.setPkceCodeChallengeMethod(rs.getString("PKCE_CODE_CHALLENGE_METHOD"));
-                String hashedJson = toHashedInfo(DigestUtils.sha256Hex(dto.getAuthorizationCode()));
-                dto.setAuthorizationCodeHash(hashedJson);
+                dto.setAuthorizationCodeHash(rs.getString("AUTHORIZATION_CODE_HASH"));
                 authorizationCodeDtos.add(dto);
             }
             rs.close();
@@ -383,8 +377,8 @@ public class DBSynchronise {
                 + "WHEN MATCHED THEN UPDATE SET "
                 + "AUTHORIZATION_CODE = ?, CONSUMER_KEY_ID = ?, CALLBACK_URL = ?, SCOPE = ?, AUTHZ_USER = ?, TENANT_ID = ?, "
                 + "USER_DOMAIN = ?, TIME_CREATED = ?, VALIDITY_PERIOD = ?, "
-                + "STATE = ?, TOKEN_ID = ?, SUBJECT_IDENTIFIER = ?, PKCE_CODE_CHALLENGE = ?, PKCE_CODE_CHALLENGE_METHOD = ?, AUTHORIZATION_CODE_HASH = ? "
-                + "WHEN NOT MATCHED THEN INSERT VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                + "STATE = ?, TOKEN_ID = ?, SUBJECT_IDENTIFIER = ?, PKCE_CODE_CHALLENGE = ?, PKCE_CODE_CHALLENGE_METHOD = ? "
+                + "WHEN NOT MATCHED THEN INSERT VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
         Connection conn = null;
         try {
@@ -407,24 +401,23 @@ public class DBSynchronise {
                 insertStatement.setString(13, dto.getSubjectIdentifier());
                 insertStatement.setString(14, dto.getPkceCodeChallenge());
                 insertStatement.setString(15, dto.getPkceCodeChallengeMethod());
-                insertStatement.setString(16, dto.getAuthorizationCodeHash());
 
-                insertStatement.setString(17, dto.getCodeId());
-                insertStatement.setString(18, dto.getAuthorizationCode());
-                insertStatement.setInt(19, dto.getConsumerKeyId());
-                insertStatement.setString(20, dto.getCallbackUrl());
-                insertStatement.setString(21, dto.getScope());
-                insertStatement.setString(22, dto.getAuthzUser());
-                insertStatement.setInt(23, dto.getTenantId());
-                insertStatement.setString(24, dto.getUserDomain());
-                insertStatement.setTimestamp(25, dto.getTimeCreated());
-                insertStatement.setLong(26, dto.getValidityPeriod());
-                insertStatement.setString(27, dto.getState());
-                insertStatement.setString(28, dto.getTokenId());
-                insertStatement.setString(29, dto.getSubjectIdentifier());
-                insertStatement.setString(30, dto.getPkceCodeChallenge());
-                insertStatement.setString(31, dto.getPkceCodeChallengeMethod());
-                insertStatement.setString(32, dto.getAuthorizationCodeHash());
+                // when not matched
+                insertStatement.setString(16, dto.getCodeId());
+                insertStatement.setString(17, dto.getAuthorizationCode());
+                insertStatement.setInt(18, dto.getConsumerKeyId());
+                insertStatement.setString(19, dto.getCallbackUrl());
+                insertStatement.setString(20, dto.getScope());
+                insertStatement.setString(21, dto.getAuthzUser());
+                insertStatement.setInt(22, dto.getTenantId());
+                insertStatement.setString(23, dto.getUserDomain());
+                insertStatement.setTimestamp(24, dto.getTimeCreated());
+                insertStatement.setLong(25, dto.getValidityPeriod());
+                insertStatement.setString(26, dto.getState());
+                insertStatement.setString(27, dto.getTokenId());
+                insertStatement.setString(28, dto.getSubjectIdentifier());
+                insertStatement.setString(29, dto.getPkceCodeChallenge());
+                insertStatement.setString(30, dto.getPkceCodeChallengeMethod());
                 logger.debug("Adding record to IDN_OAUTH2_AUTHORIZATION_CODE: " + dto.toString());
                 insertStatement.addBatch();
             }
@@ -453,7 +446,7 @@ public class DBSynchronise {
     private static int[] readIndexes() {
         String contents;
         try {
-            contents = FileUtils.readFileToString(new File("indexdata"), "UTF-8");
+            contents = FileUtils.readFileToString(new File("index-data-back"), "UTF-8");
         } catch (IOException e) {
             logger.error("Error occurred while opening file. ", e);
             return null;
@@ -474,7 +467,7 @@ public class DBSynchronise {
     private static void writeIndexes(int token, int authCode) {
         String contents = token + "," + authCode;
         try {
-            FileUtils.writeStringToFile(new File("indexdata"), contents, Charset.defaultCharset(), false);
+            FileUtils.writeStringToFile(new File("index-data-back"), contents, Charset.defaultCharset(), false);
         } catch (IOException e) {
             logger.error("Error occurred while opening file. ", e);
         }

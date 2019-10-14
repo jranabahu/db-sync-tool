@@ -1,5 +1,5 @@
 #!/bin/sh
-file="indexdata"
+file="index-data-back"
 if [ ! -f "$file" ]
 then
     echo "$file not found in this directly and create it with default value '-1,-1'"
@@ -7,15 +7,16 @@ then
 fi
 
 
-sourceDBUrl="jdbc:oracle:thin:amdb_200@localhost:1521/xe"
-sourceDBUser="amdb_200"
-sourceDBPass="amdb_200"
+sourceDBUrl="jdbc:oracle:thin:amdb_260@localhost:1521/xe"
+sourceDBUser="amdb_260"
+sourceDBPass="amdb_260"
 sourceDBDriver="oracle.jdbc.OracleDriver"
 
-destDBUrl="jdbc:oracle:thin:amdb_250@localhost:1521/xe"
-destDBUser="amdb_250"
-destDBPass="amdb_250"
+destDBUrl="jdbc:oracle:thin:amdb_200@localhost:1521/xe"
+destDBUser="amdb_200"
+destDBPass="amdb_200"
 destDBDriver="oracle.jdbc.OracleDriver"
 
-java -jar org.wso2.carbon.apimgt.dbsync-0.0.1-jar-with-dependencies.jar \
+java -jar db-sync-tool-reverse-2.6.0-jar-with-dependencies.jar \
 $sourceDBUrl  $sourceDBUser  $sourceDBPass  $sourceDBDriver  $destDBUrl  $destDBUser  $destDBPass  $destDBDriver
+
